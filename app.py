@@ -1,6 +1,6 @@
 import sqlite3
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template
 from datetime import datetime
 
 app = Flask(__name__)
@@ -9,7 +9,6 @@ app = Flask(__name__)
 DB_NAME = "vulnerable_system.db"
 
 # --- USER DATA TO SEED ---
-# Plain text passwords as requested
 SEED_DATA = [
     ("admin", "SuperSecretPass"),
     ("alice", "wonderland1"),
@@ -25,16 +24,12 @@ def get_db_connection():
     return conn
 
 def init_db():
-    """Initializes the DB and seeds a list of users."""
-    # Remove old DB to ensure clean state for this demo
     if os.path.exists(DB_NAME):
         os.remove(DB_NAME)
 
     print(f"[*] Creating and seeding database: {DB_NAME}")
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Create users table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,73 +37,82 @@ def init_db():
             password TEXT NOT NULL
         )
     ''')
-    
-    # Seed data
     cursor.executemany("INSERT INTO users (username, password) VALUES (?, ?)", SEED_DATA)
-    
     conn.commit()
     conn.close()
-    print(f"[*] Database seeded with {len(SEED_DATA)} users.")
 
 # --- ROUTES ---
 
 @app.route('/')
 def home():
-    return jsonify({
-        "message": "Welcome to the Vulnerable API",
-        "server_time": str(datetime.now())
-    })
+    return render_template('index.html', server_time=str(datetime.now()))
 
-@app.route('/loginDanger', methods=['POST'])
+@app.route('/loginDanger', methods=['GET', 'POST'])
 def login_danger():
     """
     VULNERABLE: Uses string concatenation.
-    Allows UNION BASED SQL INJECTION to leak data.
     """
-    data = request.get_json()
-    username = data.get('username', '')
-    password = data.get('password', '')
+    if request.method == 'GET':
+        return render_template('login.html', 
+                               title="Vulnerable Login", 
+                               method_description="String Concatenation (Unsafe)")
+
+    # Handle POST
+    username = request.form.get('username', '')
+    password = request.form.get('password', '')
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # The query expects 3 columns in the table: id, username, password
+    # DANGER: Directly injecting user input
     sql_query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
-    
     print(f"[*] Executing Dangerous SQL: {sql_query}")
     
     try:
+
+        # OLD LINE (Safe against stacked queries) - a bit safe but still bad due to no parameters
+        # cursor.execute(sql_query)
+
+        # NEW LINE (Vulnerable to stacked queries)
+        cursor.executescript(sql_query)
+
+
         cursor.execute(sql_query)
-        user = cursor.fetchone() # Fetches the FIRST match
+        user = cursor.fetchone()
     except sqlite3.Error as e:
-        return jsonify({"error": str(e)}), 500
+        return render_template('login.html', title="Vulnerable Login", error=f"Database Error: {e}")
     finally:
         conn.close()
 
     if user:
-        # We return the username found. If an attacker injects a UNION, 
-        # they can make this return ANY data they want.
-        return jsonify({
-            "status": "success", 
-            "logged_in_user": user['username'], 
-            "password_leaked_in_object": user['password'], # Startlingly common API mistake
-            "method": "DANGER"
-        })
+        return render_template('login.html', 
+                               title="Vulnerable Login", 
+                               success_user=user['username'],
+                               leaked_password=user['password']) # Displaying the password to prove the leak
     else:
-        return jsonify({"status": "failure", "message": "Invalid credentials"}), 401
+        return render_template('login.html', 
+                               title="Vulnerable Login", 
+                               error="Invalid Credentials",
+                               method_description="String Concatenation (Unsafe)")
 
-@app.route('/loginSafe', methods=['POST'])
+@app.route('/loginSafe', methods=['GET', 'POST'])
 def login_safe():
     """
     SECURE: Uses parameterized queries.
     """
-    data = request.get_json()
-    username = data.get('username', '')
-    password = data.get('password', '')
+    if request.method == 'GET':
+        return render_template('login.html', 
+                               title="Secure Login", 
+                               method_description="Parameterized Query (Safe)")
+
+    # Handle POST
+    username = request.form.get('username', '')
+    password = request.form.get('password', '')
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # SAFE: Using ? placeholders
     sql_query = "SELECT * FROM users WHERE username = ? AND password = ?"
     
     cursor.execute(sql_query, (username, password))
@@ -116,9 +120,30 @@ def login_safe():
     conn.close()
 
     if user:
-        return jsonify({"status": "success", "user": user['username'], "method": "SAFE"})
+        return render_template('login.html', 
+                               title="Secure Login", 
+                               success_user=user['username'])
     else:
-        return jsonify({"status": "failure", "message": "Invalid credentials"}), 401
+        return render_template('login.html', 
+                               title="Secure Login", 
+                               error="Invalid Credentials",
+                               method_description="Parameterized Query (Safe)")
+
+@app.route('/xss', methods=['GET', 'POST'])
+def xss_demo():
+    """
+    VULNERABLE: Reflected XSS Demo.
+    We take user input and render it back to the page without sanitization.
+    """
+    if request.method == 'GET':
+        return render_template('xss.html')
+
+    # Handle POST
+    comment = request.form.get('comment', '')
+    
+    # We pass the comment back to the template. 
+    # The template uses {{ comment | safe }} to render it as raw HTML/JS.
+    return render_template('xss.html', user_input=comment)
 
 if __name__ == '__main__':
     init_db()

