@@ -1,7 +1,8 @@
 import sqlite3
 import os
-from flask import Flask, request, render_template
+from flask import Flask, redirect, request, render_template,render_template_string
 from datetime import datetime
+import pickle, base64
 
 app = Flask(__name__)
 
@@ -145,6 +146,54 @@ def xss_demo():
     # The template uses {{ comment | safe }} to render it as raw HTML/JS.
     return render_template('xss.html', user_input=comment)
 
+@app.route('/hello')
+def hello():
+
+    # try this:
+    """
+    {{config.__class__.__init__.__globals__['os'].popen('hostname').read()}}
+    {{config.__class__.__init__.__globals__['os'].environ['path']}}
+
+    """
+    name = request.args.get('name', 'Guest')
+    # VULNERABLE: Direct concatenation into the template string
+    template = f"<h1>Hello {name}!</h1>" 
+    return render_template_string(template)
+
+
+@app.route('/set_prefs')
+def set_prefs():
+    # User sends a base64 encoded pickle string
+    data = request.cookies.get('preferences')
+    if data:
+        # VULNERABLE: Never unpickle untrusted data!
+        obj = pickle.loads(base64.b64decode(data))
+        return f"Preferences loaded for {obj['username']}"
+    return "No prefs"
+
+@app.route('/login')
+def gotonext():
+    # ... logic to authenticate user ...
+    next_url = request.args.get('next')
+
+    # VULNERABLE: Redirects to whatever URL is provided
+    return redirect(next_url)
+
+
+@app.route('/crash')
+def crash():
+    """
+    This route intentionally raises an error to trigger the Flask Debugger.
+    """
+    # 1. We define some sensitive variables to prove they get leaked
+    secret_key = "12345-SECRET-KEY"
+    db_password = "password123!"
+    
+    # 2. We trigger a ZeroDivisionError
+    # This unhandled exception forces the Debugger page to appear
+    result = 10 / 0 
+    
+    return f"Result is {result}"
 if __name__ == '__main__':
     init_db()
     app.run(debug=True, port=5000)
